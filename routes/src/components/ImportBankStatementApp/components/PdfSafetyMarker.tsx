@@ -64,13 +64,16 @@ const PdfSafetyMarker: React.FC = () => {
         formData.append("page", pageNum.toString());
 
         try {
-          const previewResponse = await fetch("/api/v1/pdf/pdf-to-image", {
-            method: "POST",
-            body: formData,
-            headers: {
-              Accept: "application/json",
-            },
-          });
+          const previewResponse = await fetch(
+            "/api/v1/pdf/pdf-to-image-native",
+            {
+              method: "POST",
+              body: formData,
+              headers: {
+                Accept: "application/json",
+              },
+            }
+          );
 
           if (!previewResponse.ok) continue;
 
@@ -115,7 +118,7 @@ const PdfSafetyMarker: React.FC = () => {
       );
       previewFormData.append("page", selectedPageForDrawing.toString());
 
-      const previewResponse = await fetch("/api/v1/pdf/pdf-to-image", {
+      const previewResponse = await fetch("/api/v1/pdf/pdf-to-image-native", {
         method: "POST",
         body: previewFormData,
       });

@@ -100,6 +100,7 @@ func main() {
 		pdfRoutes.POST("/page-count-native", api.GetPDFPageCountNative)
 		pdfRoutes.POST("/save", api.SaveStatement)
 		pdfRoutes.POST("/pdf-to-image", api.PDFToImage)
+		pdfRoutes.POST("/pdf-to-image-native", api.PDFToImageNative)
 		pdfRoutes.POST("/apply-drawing", api.ApplyDrawing)
 	}
 

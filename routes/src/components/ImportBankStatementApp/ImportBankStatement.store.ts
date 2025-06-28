@@ -407,13 +407,16 @@ const importBankStatementStore = create<State & Action>()(
           formData.append("page", pageNum.toString());
 
           try {
-            const previewResponse = await fetch("/api/v1/pdf/pdf-to-image", {
-              method: "POST",
-              body: formData,
-              headers: {
-                Accept: "application/json",
-              },
-            });
+            const previewResponse = await fetch(
+              "/api/v1/pdf/pdf-to-image-native",
+              {
+                method: "POST",
+                body: formData,
+                headers: {
+                  Accept: "application/json",
+                },
+              }
+            );
 
             if (!previewResponse.ok) continue;
 
@@ -526,7 +529,7 @@ const importBankStatementStore = create<State & Action>()(
       },
       reset: () => {
         const state = importBankStatementStore.getState();
-        
+
         // Clean up existing preview URLs to prevent memory leaks
         if (state.pageSelection?.previews) {
           Object.values(state.pageSelection.previews).forEach((url) => {
@@ -543,7 +546,7 @@ const importBankStatementStore = create<State & Action>()(
         // Clean up redacted page files URLs if they exist
         if (state.redactedPageFiles) {
           Object.values(state.redactedPageFiles).forEach((file) => {
-            if (file && typeof file === 'object' && 'name' in file) {
+            if (file && typeof file === "object" && "name" in file) {
               // These are File objects, not URLs, so no cleanup needed
             }
           });
