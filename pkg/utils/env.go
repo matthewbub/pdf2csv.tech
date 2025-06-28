@@ -68,6 +68,20 @@ func ValidateEnvironment() error {
 }
 
 func SetTestEnvironment() error {
+	// Try to load .env file from project root (go up directories until we find it)
+	envPaths := []string{
+		".env",           // current directory
+		"../.env",        // one level up
+		"../../.env",     // two levels up (for nested packages)
+		"../../../.env",  // three levels up
+	}
+	
+	for _, path := range envPaths {
+		if err := godotenv.Load(path); err == nil {
+			break // Successfully loaded .env file
+		}
+	}
+
 	testKey := os.Getenv("TEST_SESSION_SECRET_KEY")
 	if testKey == "" {
 		return fmt.Errorf("TEST_SESSION_SECRET_KEY is not set")
