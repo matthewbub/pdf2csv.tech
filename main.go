@@ -77,7 +77,7 @@ func main() {
 	publicRoutes := router.Group("/api/v1/public", middleware.RateLimit(5*time.Second))
 	{
 		publicRoutes.POST("/sign-up", api.SignUpHandler)
-		publicRoutes.POST("/login", api.LoginHandler)
+		publicRoutes.POST("/login", middleware.BruteForceProtection(), api.LoginHandler)
 	}
 
 	accountRoutes := router.Group("/api/v1/account", middleware.JWTAuthMiddleware())

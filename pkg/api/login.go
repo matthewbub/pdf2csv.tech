@@ -10,6 +10,7 @@ import (
 
 	"bus.zcauldron.com/pkg/api/response"
 	"bus.zcauldron.com/pkg/constants"
+	"bus.zcauldron.com/pkg/middleware"
 	"bus.zcauldron.com/pkg/utils"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -35,6 +36,7 @@ func LoginHandler(c *gin.Context) {
 
 	// Basic validation
 	if err != nil || user == nil || bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)) != nil {
+		middleware.RecordFailedLogin(c.ClientIP())
 		c.JSON(http.StatusUnauthorized, response.Error(
 			"Invalid username or password",
 			response.AUTHENTICATION_FAILED,
@@ -45,6 +47,7 @@ func LoginHandler(c *gin.Context) {
 	// Check if user is inactive
 	if user.InactiveAt.Valid {
 		log.Println("User is inactive", user.ID)
+		middleware.RecordFailedLogin(c.ClientIP())
 		c.JSON(http.StatusUnauthorized, response.Error(
 			"User is inactive",
 			response.AUTHENTICATION_FAILED,
@@ -97,6 +100,10 @@ func LoginHandler(c *gin.Context) {
 	}
 
 	c.SetCookie("jwt", jwtToken, int(cookieConfig.Expiration.Seconds()), "/", cookieConfig.Domain, cookieConfig.Secure, cookieConfig.HttpOnly)
+	
+	// Clear failed login attempts on successful login
+	middleware.RecordSuccessfulLogin(c.ClientIP())
+	
 	c.JSON(http.StatusOK, response.Success(
 		struct {
 			SecurityQuestionsAnswered bool `json:"securityQuestionsAnswered"`
