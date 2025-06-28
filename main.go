@@ -96,6 +96,8 @@ func main() {
 	pdfRoutes := router.Group("/api/v1/pdf", middleware.JWTAuthMiddleware())
 	{
 		pdfRoutes.POST("/extract-text", api.ExtractPDFText)
+		pdfRoutes.POST("/format-data-from-text", api.FormatDataFromText)
+		pdfRoutes.POST("/extract-text-native", api.ExtractPDFTextNative)
 		pdfRoutes.POST("/page-count", api.GetPDFPageCount)
 		pdfRoutes.POST("/page-count-native", api.GetPDFPageCountNative)
 		pdfRoutes.POST("/save", api.SaveStatement)

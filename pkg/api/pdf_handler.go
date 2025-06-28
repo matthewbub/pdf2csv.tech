@@ -42,6 +42,11 @@ type StatementData struct {
 	Transactions []Transaction `json:"transactions"`
 }
 
+type FormatDataRequest struct {
+	Text  string `json:"text"`
+	Pages string `json:"pages"`
+}
+
 type PDFPageCount struct {
 	NumPages int    `json:"numPages"`
 	FileID   string `json:"fileId"`
@@ -57,7 +62,7 @@ func ExtractPDFText(c *gin.Context) {
 		return
 	}
 
-	userID, _, err := utils.VerifyJWT(tokenString)
+	_, _, err = utils.VerifyJWT(tokenString)
 	if err != nil {
 		logger.Printf("JWT verification failed: %v", err)
 		c.JSON(401, gin.H{"error": "Unauthorized"})
@@ -151,12 +156,53 @@ func ExtractPDFText(c *gin.Context) {
 
 	if !pythonResp.Success {
 		logger.Printf("Python service error: %s sensitive words found in document %v", pythonResp.Error, pythonResp.Data.PatternsMatched)
-		c.JSON(400, gin.H{"error": pythonResp.Error})
+		c.JSON(400, gin.H{"error": pythonResp.Error, "data": pythonResp.Data})
 		return
 	}
 
-	extractedText := pythonResp.Text
-	logger.Printf("Extracted text: %s", extractedText)
+	logger.Printf("Successfully extracted text from PDF")
+	c.JSON(200, pythonResp)
+}
+
+func FormatDataFromText(c *gin.Context) {
+	logger := utils.GetLogger()
+
+	tokenString, err := c.Cookie("jwt")
+	if err != nil || tokenString == "" {
+		logger.Printf("Unauthorized access attempt: missing or empty JWT")
+		c.JSON(401, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	userID, _, err := utils.VerifyJWT(tokenString)
+	if err != nil {
+		logger.Printf("JWT verification failed: %v", err)
+		c.JSON(401, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var reqBody FormatDataRequest
+	if err := c.ShouldBindJSON(&reqBody); err != nil {
+		logger.Printf("Invalid request body: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	extractedText := reqBody.Text
+	pagesStr := reqBody.Pages
+
+	var pages []int
+	if pagesStr != "" {
+		for _, p := range strings.Split(pagesStr, ",") {
+			page, err := strconv.Atoi(strings.TrimSpace(p))
+			if err != nil {
+				logger.Printf("Invalid page number in pages string: %v", err)
+				c.JSON(400, gin.H{"error": "Invalid page number in pages string"})
+				return
+			}
+			pages = append(pages, page)
+		}
+	}
 
 	// Define the JSON schema for the response
 	jsonSchema := map[string]interface{}{
@@ -220,7 +266,8 @@ func ExtractPDFText(c *gin.Context) {
 	}
 
 	// Send the request to OpenAI API
-	req, err = http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(payloadBytes))
+	client := &http.Client{}
+	req, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		logger.Printf("Failed to create request: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create request"})
@@ -236,7 +283,7 @@ func ExtractPDFText(c *gin.Context) {
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
-	resp, err = client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		logger.Printf("Failed to send request: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send request"})
@@ -284,13 +331,15 @@ func ExtractPDFText(c *gin.Context) {
 	pagesProcessed := len(pages)
 
 	// Insert into pdf_processing table
-	db := utils.GetDB()
-	_, err = db.Exec("INSERT INTO pdf_processing (id, user_id, pages_processed) VALUES (?, ?, ?)",
-		uuid.New().String(), userID, pagesProcessed)
-	if err != nil {
-		logger.Printf("Failed to record PDF processing: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record PDF processing"})
-		return
+	if pagesProcessed > 0 {
+		db := utils.GetDB()
+		_, err = db.Exec("INSERT INTO pdf_processing (id, user_id, pages_processed) VALUES (?, ?, ?)",
+			uuid.New().String(), userID, pagesProcessed)
+		if err != nil {
+			logger.Printf("Failed to record PDF processing: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record PDF processing"})
+			return
+		}
 	}
 
 	logger.Printf("Successfully processed PDF for user %s with %d pages", userID, pagesProcessed)

@@ -231,32 +231,62 @@ const importBankStatementStore = create<State & Action>()(
         }
 
         try {
-          const response = await fetch("/api/v1/pdf/extract-text", {
-            method: "POST",
-            body: formData,
-          });
+          const textExtractionResponse = await fetch(
+            "/api/v1/pdf/extract-text-native",
+            {
+              method: "POST",
+              body: formData,
+            }
+          );
 
-          const data = await response.json();
-          if (!response.ok) throw new Error(data.error);
+          const textExtractionData = await textExtractionResponse.json();
+          if (!textExtractionResponse.ok) {
+            throw new Error(textExtractionData.error);
+          }
 
-          const transactions = data.transactions.map((t: Transaction) => ({
-            ...t,
-            id: generateId("transaction-"),
-          }));
+          // Step 2: Format the extracted text
+          const formatDataResponse = await fetch(
+            "/api/v1/pdf/format-data-from-text",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                text: textExtractionData.text,
+                pages: formData.get("pages"),
+              }),
+            }
+          );
 
-          console.log("data", data);
+          const formattedData = await formatDataResponse.json();
+          if (!formatDataResponse.ok) {
+            throw new Error(formattedData.error);
+          }
+
+          const transactions = formattedData.transactions.map(
+            (t: Transaction) => ({
+              ...t,
+              id: generateId("transaction-"),
+            })
+          );
+
+          console.log("data", formattedData);
 
           set(
             {
-              statement: { ...data, transactions },
-              statement_copy: { ...data, transactions },
+              statement: { ...formattedData, transactions },
+              statement_copy: { ...formattedData, transactions },
             },
             undefined,
             "ImportBankStatementStore/SubmitSelectedPages"
           );
-        } catch (err) {
+        } catch (error: unknown) {
           set(
-            { error: err instanceof Error ? err.message : "An error occurred" },
+            {
+              error:
+                error instanceof Error ? error.message : "An error occurred",
+            },
             undefined,
             "ImportBankStatementStore/SubmitSelectedPages"
           );
