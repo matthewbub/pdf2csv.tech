@@ -18,6 +18,7 @@ func TestMain(m *testing.M) {
 	if err := utils.SetTestEnvironment(); err != nil {
 		log.Fatalf("Failed to set test environment: %v", err)
 	}
+
 	if err := utils.RunMigrations(); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
@@ -25,8 +26,14 @@ func TestMain(m *testing.M) {
 	if err := utils.RunMigrationsTest(); err != nil {
 		log.Fatalf("Failed to run migrations test: %v", err)
 	}
-	m.Run()
-	utils.DropTestDatabase()
+
+	exitCode := m.Run()
+	
+	if err := utils.DropTestDatabase(); err != nil {
+		log.Printf("Warning: Failed to clean up test database: %v", err)
+	}
+	
+	os.Exit(exitCode)
 }
 
 func TestSignUpEndpoint(t *testing.T) {
