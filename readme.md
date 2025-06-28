@@ -1,5 +1,7 @@
 # PDF to CSV
 
+> This repo is under VERY active development. Use at your own discretion
+
 The absolute safest way to convert bank statements to CSV format.
 
 ---
