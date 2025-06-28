@@ -29,38 +29,55 @@ func GetDB() *sql.DB {
 }
 
 func initDB() *sql.DB {
-	// Get the current working directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		log.Fatal("Error getting current working directory:", err)
-	}
-
-	var dbPath string
 	env := GetEnv()
 	logger := GetLogger()
 
+	var dbPath string
+	var dbSource string
+
 	switch env {
 	case constants.ENV_PRODUCTION:
+		cwd, err := os.Getwd()
+		if err != nil {
+			log.Fatal("Error getting current working directory:", err)
+		}
 		dbPath = filepath.Join(cwd, "pkg", "database", "prod.db")
+		dbSource = dbPath
 	case constants.ENV_STAGING:
+		cwd, err := os.Getwd()
+		if err != nil {
+			log.Fatal("Error getting current working directory:", err)
+		}
 		dbPath = filepath.Join(cwd, "pkg", "database", "staging.db")
+		dbSource = dbPath
 	case constants.ENV_DEVELOPMENT:
+		cwd, err := os.Getwd()
+		if err != nil {
+			log.Fatal("Error getting current working directory:", err)
+		}
 		dbPath = filepath.Join(cwd, "pkg", "database", "dev.db")
+		dbSource = dbPath
 	case constants.ENV_TEST:
-		dbPath = filepath.Join(cwd, "pkg", "database", "test.db")
+		// Use in-memory database for tests with a shared cache
+		// This ensures all connections use the same in-memory database
+		dbSource = "file::memory:?cache=shared&mode=rwc"
+		logger.Printf("Using in-memory database for tests")
 	default:
 		logger.Fatalf("An unrecognized environment was detected. Aborting.")
 		panic("An unrecognized environment was detected. Aborting.")
 	}
 
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		logger.Fatalf("Database file does not exist at path: %s", dbPath)
-		return nil
+	// For file-based databases, check if the file exists
+	if env != constants.ENV_TEST {
+		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+			logger.Fatalf("Database file does not exist at path: %s", dbPath)
+			return nil
+		}
 	}
 
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite3", dbSource)
 	if err != nil {
-		logger.Fatalf("Error opening database. Are you sure it exists? %v", err)
+		logger.Fatalf("Error opening database: %v", err)
 		return nil
 	}
 
@@ -75,5 +92,6 @@ func initDB() *sql.DB {
 	db.SetMaxIdleConns(5)
 	db.SetConnMaxLifetime(5 * time.Minute)
 
+	logger.Printf("Database connection established successfully (env: %s)", env)
 	return db
 }

@@ -1,4 +1,4 @@
-# AGENTS Guide
+# AGENT Guide
 ## Build & Test Commands
 - Frontend (routes/): cd routes && pnpm dev, pnpm build, pnpm typecheck
 - Backend (Go): go run main.go, go build, go test ./..., go test -run TestSignUpEndpoint
