@@ -48,8 +48,8 @@ func VerifyJWT(tokenString string) (string, time.Time, error) {
 
 func jwtSecretKeyFunc(token *jwt.Token) (interface{}, error) {
 	jwtSecret := GetSecretKeyFromEnv()
-	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-		return nil, errors.New("unexpected signing method")
+	if token.Method != jwt.SigningMethodHS256 {
+		return nil, errors.New("unexpected signing method: only HS256 is allowed")
 	}
 	return jwtSecret, nil
 }

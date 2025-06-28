@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -23,6 +24,9 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 
 		// Parse the token with the MapClaims type
 		token, err := jwt.ParseWithClaims(tokenString, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
+			if token.Method != jwt.SigningMethodHS256 {
+				return nil, errors.New("unexpected signing method: only HS256 is allowed")
+			}
 			return []byte(jwtSecretKey), nil
 		})
 
