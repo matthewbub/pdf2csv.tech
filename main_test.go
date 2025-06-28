@@ -59,7 +59,7 @@ func setupTestRouter() *gin.Engine {
 	// routes
 	publicRoutes := router.Group("/api/v1/public")
 	{
-		publicRoutes.POST("/sign-up", api.SignUpHandler)
+		publicRoutes.POST("/sign-up", middleware.BruteForceProtection(), api.SignUpHandler)
 		publicRoutes.POST("/login", middleware.BruteForceProtection(), api.LoginHandler)
 	}
 
