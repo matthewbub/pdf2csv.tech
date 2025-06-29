@@ -87,11 +87,11 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
-	// Generate JWT after successful login
-	jwtToken, err := utils.GenerateJWT(user.ID)
+	// Generate access and refresh tokens after successful login
+	accessToken, refreshToken, err := utils.GenerateTokenPair(user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.Error(
-			"Failed to generate token",
+			"Failed to generate tokens",
 			response.OPERATION_FAILED,
 		))
 		return
@@ -104,7 +104,7 @@ func LoginHandler(c *gin.Context) {
 		Secure     bool
 		HttpOnly   bool
 	}{
-		Expiration: constants.AppConfig.DefaultJWTExpiration,
+		Expiration: constants.AppConfig.AccessTokenExpiration,
 		Domain:     "",
 		Secure:     true,
 		HttpOnly:   true,
@@ -136,7 +136,8 @@ func LoginHandler(c *gin.Context) {
 	}
 
 	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("jwt", jwtToken, int(cookieConfig.Expiration.Seconds()), "/", cookieConfig.Domain, cookieConfig.Secure, cookieConfig.HttpOnly)
+	c.SetCookie("jwt", accessToken, int(cookieConfig.Expiration.Seconds()), "/", cookieConfig.Domain, cookieConfig.Secure, cookieConfig.HttpOnly)
+	c.SetCookie("refresh_token", refreshToken, int(constants.AppConfig.RefreshTokenExpiration.Seconds()), "/", cookieConfig.Domain, cookieConfig.Secure, cookieConfig.HttpOnly)
 
 	// Clear failed login attempts on successful login
 	middleware.RecordSuccessfulLogin(c.ClientIP())

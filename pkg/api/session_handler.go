@@ -62,7 +62,7 @@ func RenewSessionHandler(c *gin.Context) {
 
 	cookieName := "jwt"
 	cookieValue := newToken
-	maxAge := int(constants.AppConfig.DefaultJWTExpiration.Seconds())
+	maxAge := int(constants.AppConfig.AccessTokenExpiration.Seconds())
 	path := "/"
 
 	// Set new cookie

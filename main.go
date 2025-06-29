@@ -78,6 +78,7 @@ func main() {
 	{
 		publicRoutes.POST("/sign-up", api.SignUpHandler)
 		publicRoutes.POST("/login", middleware.BruteForceProtection(), api.LoginHandler)
+		publicRoutes.POST("/refresh-token", api.RefreshTokenHandler)
 	}
 
 	accountRoutes := router.Group("/api/v1/account", middleware.JWTAuthMiddleware())

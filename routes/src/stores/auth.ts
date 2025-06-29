@@ -298,7 +298,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
   renewSession: async () => {
     try {
       set({ isLoading: true, error: null });
-      const response = await fetch("/api/v1/account/renew-session", {
+      const response = await fetch("/api/v1/public/refresh-token", {
         method: "POST",
         credentials: "include",
       });
