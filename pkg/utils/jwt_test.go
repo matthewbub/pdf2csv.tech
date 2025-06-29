@@ -543,3 +543,52 @@ func TestVerifyJWT_ValidPastToken(t *testing.T) {
 		t.Error("Token expiration time should be in the future")
 	}
 }
+
+func TestJWTKeyRotation(t *testing.T) {
+	userID := "test-user-123"
+
+	originalToken, err := GenerateJWT(userID)
+	if err != nil {
+		t.Fatalf("Failed to generate JWT with original key: %v", err)
+	}
+
+	originalUserID, _, err := VerifyJWT(originalToken)
+	if err != nil {
+		t.Fatalf("Failed to verify JWT with original key: %v", err)
+	}
+	if originalUserID != userID {
+		t.Errorf("Expected user ID %s, got %s", userID, originalUserID)
+	}
+
+	newKey := make([]byte, 32)
+	for i := range newKey {
+		newKey[i] = byte(i + 100)
+	}
+
+	RotateJWTKey(newKey)
+
+	newToken, err := GenerateJWT(userID)
+	if err != nil {
+		t.Fatalf("Failed to generate JWT with new key: %v", err)
+	}
+
+	newUserID, _, err := VerifyJWT(newToken)
+	if err != nil {
+		t.Fatalf("Failed to verify JWT with new key: %v", err)
+	}
+	if newUserID != userID {
+		t.Errorf("Expected user ID %s, got %s", userID, newUserID)
+	}
+
+	oldUserID, _, err := VerifyJWT(originalToken)
+	if err != nil {
+		t.Fatalf("Failed to verify old JWT after key rotation: %v", err)
+	}
+	if oldUserID != userID {
+		t.Errorf("Expected user ID %s, got %s", userID, oldUserID)
+	}
+
+	if originalToken == newToken {
+		t.Error("New token should be different from original token after key rotation")
+	}
+}
