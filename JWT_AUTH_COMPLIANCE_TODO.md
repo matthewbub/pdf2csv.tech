@@ -2,14 +2,7 @@
 
 # Medium Priority Security Improvements
 
-### 3. **Token Expiration Too Short**
-
-- **Issue**: 30-minute expiration may cause poor UX
-- **Risk**: Frequent re-authentication required
-- **Fix**: Implement refresh token pattern or extend to 1-2 hours
-- **Location**: `pkg/constants/app_config.go:43`
-
-### 4. **Missing Token Blacklisting**
+## 4. **Missing Token Blacklisting**
 
 - **Issue**: No mechanism to invalidate tokens before expiration
 - **Risk**: Compromised tokens remain valid until expiration
