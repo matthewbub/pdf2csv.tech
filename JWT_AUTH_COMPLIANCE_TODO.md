@@ -1,39 +1,9 @@
 # JWT Authentication System - Compliance & Standardization TODO
 
-## ✅ Completed Items
-
-### **Key Rotation Mechanism** ✅
-- **Implemented**: Full JWT key rotation system with key ID tracking
-- **Features**: 
-  - Thread-safe key manager with current and previous keys
-  - Key ID (`kid`) claim in JWT tokens for key identification
-  - Support for up to 3 previous keys for backward compatibility
-  - Automatic cleanup of old keys
-  - `RotateJWTKey()` function for manual key rotation
-- **Location**: `pkg/utils/jwt.go:16-261`
-
-### **Algorithm Verification** ✅
-- **Implemented**: Explicit HS256 algorithm validation in all token parsing
-- **Location**: `pkg/utils/jwt.go:150-152`, `pkg/utils/jwt.go:250-252`
-
-### **Comprehensive Token Validation** ✅
-- **Implemented**: Full validation of `iat`, `nbf`, and `exp` claims
-- **Features**: Prevents token replay attacks and premature token usage
-- **Location**: `pkg/utils/jwt.go:176-201`
-
-### **Input Validation** ✅
-- **Implemented**: Input sanitization for authentication endpoints
-- **Location**: `pkg/api/login.go:33-34`
-
-### **Security Logging** ✅
-- **Implemented**: Comprehensive audit logging for authentication events
-- **Location**: Throughout auth flow in middleware and handlers
-
----
-
 ## Critical Security Issues (High Priority)
 
 ### 1. **Cookie Security Inconsistencies**
+
 - **Issue**: `HttpOnly=false` and `Secure=false` in non-production environments
 - **Risk**: XSS attacks can steal tokens in staging/dev
 - **Fix**: Always use secure cookie settings, use different domains for testing
@@ -42,18 +12,21 @@
 ## Medium Priority Security Improvements
 
 ### 2. **Missing SameSite Configuration**
+
 - **Issue**: Inconsistent SameSite cookie attribute usage (only set in session_handler.go:65)
 - **Risk**: CSRF attacks
 - **Fix**: Standardize SameSite=Strict for JWT cookies in all handlers
 - **Location**: `pkg/api/login.go:102` (missing), `pkg/api/session_handler.go:65` (implemented)
 
 ### 3. **Token Expiration Too Short**
+
 - **Issue**: 30-minute expiration may cause poor UX
 - **Risk**: Frequent re-authentication required
 - **Fix**: Implement refresh token pattern or extend to 1-2 hours
 - **Location**: `pkg/constants/app_config.go:43`
 
 ### 4. **Missing Token Blacklisting**
+
 - **Issue**: No mechanism to invalidate tokens before expiration
 - **Risk**: Compromised tokens remain valid until expiration
 - **Fix**: Implement token blacklist/revocation system
@@ -62,12 +35,14 @@
 ## Compliance & Standards (Medium Priority)
 
 ### 5. **RFC 7519 JWT Compliance**
+
 - **Issue**: Missing standard claims (`iss`, `aud`, `sub`)
 - **Risk**: Non-standard token format
 - **Fix**: Add issuer, audience, and subject claims
 - **Location**: `pkg/utils/jwt.go:137-143`
 
 ### 6. **OWASP JWT Security Guidelines**
+
 - **Issue**: Not following OWASP JWT security best practices
 - **Risk**: Various security vulnerabilities
 - **Fix**: Implement OWASP recommendations:
@@ -76,6 +51,7 @@
 - **Location**: Multiple files
 
 ### 7. **Missing CORS Security Headers**
+
 - **Issue**: Basic CORS implementation without security headers
 - **Risk**: Various client-side attacks
 - **Fix**: Add security headers (CSP, HSTS, X-Frame-Options)
@@ -84,12 +60,14 @@
 ## Code Quality & Maintainability (Low Priority)
 
 ### 8. **Duplicate Cookie Configuration Code**
+
 - **Issue**: Cookie settings duplicated across handlers
 - **Risk**: Inconsistent behavior, maintenance burden
 - **Fix**: Create centralized cookie configuration utility
 - **Location**: `pkg/api/login.go:69-102`, `pkg/api/session_handler.go:41-74`
 
 ### 9. **Error Message Information Disclosure**
+
 - **Issue**: Detailed error messages may leak information
 - **Risk**: Information disclosure to attackers
 - **Fix**: Standardize generic error messages for auth failures
@@ -98,15 +76,18 @@
 ## Implementation Recommendations
 
 ### Phase 1: Critical Security (Week 1)
+
 1. Secure cookie settings across all environments (fix HttpOnly/Secure in non-prod)
 
 ### Phase 2: Enhanced Security (Week 2-3)
+
 1. Implement token blacklisting
 2. Add refresh token mechanism or extend expiration time
 3. Standardize SameSite cookie configuration
 4. Add security headers
 
 ### Phase 3: Compliance & Quality (Week 4)
+
 1. Add standard JWT claims (iss, aud, sub)
 2. Centralize cookie configuration
 3. Improve error handling
@@ -130,8 +111,9 @@
 ---
 
 **Priority Legend:**
+
 - 🔴 **High**: Critical security vulnerabilities requiring immediate attention
-- 🟡 **Medium**: Important security improvements and compliance requirements  
+- 🟡 **Medium**: Important security improvements and compliance requirements
 - 🟢 **Low**: Code quality and maintainability improvements
 
 **Estimated Timeline:** 2-3 weeks for remaining implementation (reduced from 4 weeks due to completed items)

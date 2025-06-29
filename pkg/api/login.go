@@ -19,6 +19,7 @@ import (
 func LoginHandler(c *gin.Context) {
 	var body struct {
 		Username   string `json:"username"`
+		Email      string `json:"email"`
 		Password   string `json:"password"`
 		RememberMe bool   `json:"rememberMe"`
 	}
@@ -30,9 +31,40 @@ func LoginHandler(c *gin.Context) {
 		))
 		return
 	}
-	username := utils.SanitizeInput(body.Username)
+
+	// Support login by either username or email
+	identifier := utils.SanitizeInput(body.Username)
+
+	if identifier == "" {
+		// If using email, validate email format before sanitizing
+		if body.Email != "" && !utils.IsValidEmail(body.Email) {
+			c.JSON(http.StatusBadRequest, response.Error(
+				"Invalid email format",
+				response.INVALID_REQUEST_DATA,
+			))
+			return
+		}
+		identifier = utils.SanitizeInput(body.Email)
+	}
+
+	if identifier == "" {
+		c.JSON(http.StatusBadRequest, response.Error(
+			"Username or email is required",
+			response.INVALID_REQUEST_DATA,
+		))
+		return
+	}
+
 	password := utils.SanitizeInput(body.Password)
-	user, err := getUserForLogin(username)
+	if password == "" {
+		c.JSON(http.StatusBadRequest, response.Error(
+			"Password is required",
+			response.INVALID_REQUEST_DATA,
+		))
+		return
+	}
+
+	user, err := getUserForLogin(identifier)
 
 	// Basic validation
 	if err != nil || user == nil || bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)) != nil {
@@ -93,17 +125,21 @@ func LoginHandler(c *gin.Context) {
 			cookieConfig.Secure = true
 			cookieConfig.HttpOnly = true
 		}
-		if env == constants.ENV_STAGING || env == constants.ENV_DEVELOPMENT || env == constants.ENV_TEST {
+		if env == constants.ENV_STAGING {
+			cookieConfig.HttpOnly = true
+			cookieConfig.Secure = true
+		}
+		if env == constants.ENV_DEVELOPMENT || env == constants.ENV_TEST {
 			cookieConfig.HttpOnly = false
 			cookieConfig.Secure = false
 		}
 	}
 
 	c.SetCookie("jwt", jwtToken, int(cookieConfig.Expiration.Seconds()), "/", cookieConfig.Domain, cookieConfig.Secure, cookieConfig.HttpOnly)
-	
+
 	// Clear failed login attempts on successful login
 	middleware.RecordSuccessfulLogin(c.ClientIP())
-	
+
 	c.JSON(http.StatusOK, response.Success(
 		struct {
 			SecurityQuestionsAnswered bool `json:"securityQuestionsAnswered"`
@@ -114,7 +150,7 @@ func LoginHandler(c *gin.Context) {
 	))
 }
 
-func getUserForLogin(username string) (*utils.UserWithRole, error) {
+func getUserForLogin(identifier string) (*utils.UserWithRole, error) {
 	db := utils.GetDB()
 
 	user := utils.UserWithRole{}
@@ -125,14 +161,14 @@ func getUserForLogin(username string) (*utils.UserWithRole, error) {
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Prepare("SELECT id, username, email, security_questions_answered, password, inactive_at FROM active_users WHERE username = ?")
+	stmt, err := tx.Prepare("SELECT id, username, email, security_questions_answered, password, inactive_at FROM active_users WHERE username = ? OR email = ?")
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
 	defer stmt.Close()
 
-	err = stmt.QueryRow(username).Scan(
+	err = stmt.QueryRow(identifier, identifier).Scan(
 		&user.ID,
 		&user.Username,
 		&user.Email,
