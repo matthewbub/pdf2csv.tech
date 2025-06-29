@@ -28,11 +28,11 @@ func TestMain(m *testing.M) {
 	}
 
 	exitCode := m.Run()
-	
+
 	if err := utils.DropTestDatabase(); err != nil {
 		log.Printf("Warning: Failed to clean up test database: %v", err)
 	}
-	
+
 	os.Exit(exitCode)
 }
 
@@ -40,6 +40,13 @@ func TestSignUpEndpoint(t *testing.T) {
 	router := setupTestRouter()
 	t.Run("Register user at signup", func(t *testing.T) {
 		test.RegisterUserAtSignup(router, t)
+	})
+}
+
+func TestSignUpBruteForce(t *testing.T) {
+	router := setupTestRouter()
+	t.Run("Brute force signup tests", func(t *testing.T) {
+		test.BruteForceSignUpTests(router, t)
 	})
 }
 
