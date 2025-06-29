@@ -29,10 +29,15 @@ func GetNextUser() (string, string, error) {
 	userMutex.Lock()
 	defer userMutex.Unlock()
 
+	// Since we're using an in-memory database that gets recreated for each test,
+	// we can use a simple counter approach based on the existing test users
+	// This is simpler and more reliable for testing
+
+	// For the first test, use testuser3 (since we have testuser1 and testuser2 in history)
+	// For subsequent tests in the same run, increment the counter
 	username := fmt.Sprintf("testuser%d", userCounter)
 	email := fmt.Sprintf("testuser%d@example.com", userCounter)
 	userCounter++
-
 	return username, email, nil
 }
 func GetPrimaryUser() (string, string) {
