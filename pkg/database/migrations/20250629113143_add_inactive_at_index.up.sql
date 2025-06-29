@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_users_inactive_at ON users(inactive_at);
