@@ -1,7 +1,10 @@
 package utils
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -19,12 +22,19 @@ type JWTKeyManager struct {
 var keyManager *JWTKeyManager
 var keyManagerOnce sync.Once
 
+func generateKeyID(key []byte) string {
+	hash := sha256.Sum256(key)
+	timestamp := time.Now().Unix()
+	return fmt.Sprintf("%d_%s", timestamp, hex.EncodeToString(hash[:8]))
+}
+
 func getKeyManager() *JWTKeyManager {
 	keyManagerOnce.Do(func() {
+		currentKey := GetSecretKeyFromEnv()
 		keyManager = &JWTKeyManager{
-			currentKey:   GetSecretKeyFromEnv(),
+			currentKey:   currentKey,
 			previousKeys: make([][]byte, 0),
-			keyID:        "current",
+			keyID:        generateKeyID(currentKey),
 		}
 	})
 	return keyManager
@@ -50,8 +60,18 @@ func (km *JWTKeyManager) RotateKey(newKey []byte) {
 	km.mu.Lock()
 	defer km.mu.Unlock()
 
-	km.previousKeys = append(km.previousKeys, km.currentKey)
-	km.currentKey = newKey
+	if len(newKey) == 0 {
+		return
+	}
+
+	currentKeyCopy := make([]byte, len(km.currentKey))
+	copy(currentKeyCopy, km.currentKey)
+	km.previousKeys = append(km.previousKeys, currentKeyCopy)
+
+	newKeyCopy := make([]byte, len(newKey))
+	copy(newKeyCopy, newKey)
+	km.currentKey = newKeyCopy
+	km.keyID = generateKeyID(newKeyCopy)
 
 	if len(km.previousKeys) > 3 {
 		km.previousKeys = km.previousKeys[1:]
