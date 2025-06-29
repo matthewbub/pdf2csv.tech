@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -17,6 +18,7 @@ type JWTKeyManager struct {
 	currentKey   []byte
 	previousKeys [][]byte
 	keyID        string
+	keyIDToKey   map[string][]byte
 }
 
 var keyManager *JWTKeyManager
@@ -24,18 +26,23 @@ var keyManagerOnce sync.Once
 
 func generateKeyID(key []byte) string {
 	hash := sha256.Sum256(key)
-	timestamp := time.Now().Unix()
+	timestamp := time.Now().UnixNano()
 	return fmt.Sprintf("%d_%s", timestamp, hex.EncodeToString(hash[:8]))
 }
 
 func getKeyManager() *JWTKeyManager {
 	keyManagerOnce.Do(func() {
 		currentKey := GetSecretKeyFromEnv()
+		keyID := generateKeyID(currentKey)
 		keyManager = &JWTKeyManager{
 			currentKey:   currentKey,
 			previousKeys: make([][]byte, 0),
-			keyID:        generateKeyID(currentKey),
+			keyID:        keyID,
+			keyIDToKey:   make(map[string][]byte),
 		}
+		// Store the current key in the mapping
+		keyManager.keyIDToKey[keyID] = make([]byte, len(currentKey))
+		copy(keyManager.keyIDToKey[keyID], currentKey)
 	})
 	return keyManager
 }
@@ -71,12 +78,17 @@ func (km *JWTKeyManager) GetAllValidKeys() [][]byte {
 	return keys
 }
 
-func (km *JWTKeyManager) RotateKey(newKey []byte) {
+func (km *JWTKeyManager) RotateKey(newKey []byte) error {
 	km.mu.Lock()
 	defer km.mu.Unlock()
 
 	if len(newKey) == 0 {
-		panic("new key cannot be empty")
+		return errors.New("new key cannot be empty")
+	}
+
+	// Check if the new key is the same as current key
+	if bytes.Equal(km.currentKey, newKey) {
+		return errors.New("new key is identical to current key")
 	}
 
 	currentKeyCopy := make([]byte, len(km.currentKey))
@@ -86,11 +98,30 @@ func (km *JWTKeyManager) RotateKey(newKey []byte) {
 	newKeyCopy := make([]byte, len(newKey))
 	copy(newKeyCopy, newKey)
 	km.currentKey = newKeyCopy
-	km.keyID = generateKeyID(newKeyCopy)
+	newKeyID := generateKeyID(newKeyCopy)
+	km.keyID = newKeyID
 
+	// Update keyID mapping
+	km.keyIDToKey[newKeyID] = make([]byte, len(newKeyCopy))
+	copy(km.keyIDToKey[newKeyID], newKeyCopy)
+
+	// Clean up old keys from mapping if we exceed the limit
 	if len(km.previousKeys) > 3 {
+		// Remove the oldest key from mapping before removing from slice
+		if len(km.previousKeys) > 0 {
+			oldestKey := km.previousKeys[0]
+			// Find and remove the keyID for the oldest key
+			for keyID, key := range km.keyIDToKey {
+				if bytes.Equal(key, oldestKey) {
+					delete(km.keyIDToKey, keyID)
+					break
+				}
+			}
+		}
 		km.previousKeys = km.previousKeys[1:]
 	}
+
+	return nil
 }
 
 func GenerateJWT(userID string) (string, error) {
@@ -110,77 +141,99 @@ func GenerateJWT(userID string) (string, error) {
 	return token.SignedString(jwtSecret)
 }
 
+func verifyTokenWithKey(tokenString string, key []byte) (string, time.Time, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if token.Method != jwt.SigningMethodHS256 {
+			return nil, errors.New("unexpected signing method: only HS256 is allowed")
+		}
+		return key, nil
+	})
+
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	if !token.Valid {
+		return "", time.Time{}, errors.New("token is invalid")
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", time.Time{}, errors.New("could not parse claims")
+	}
+
+	userID, ok := claims["user_id"].(string)
+	if !ok {
+		return "", time.Time{}, errors.New("user_id not found in token")
+	}
+
+	now := time.Now()
+
+	iat, ok := claims["iat"].(float64)
+	if !ok {
+		return "", time.Time{}, errors.New("iat (issued at) not found in token")
+	}
+	issuedAt := time.Unix(int64(iat), 0)
+	if issuedAt.After(now) {
+		return "", time.Time{}, errors.New("token used before issued")
+	}
+
+	nbf, ok := claims["nbf"].(float64)
+	if !ok {
+		return "", time.Time{}, errors.New("nbf (not before) not found in token")
+	}
+	notBefore := time.Unix(int64(nbf), 0)
+	if now.Before(notBefore) {
+		return "", time.Time{}, errors.New("token used before valid")
+	}
+
+	exp, ok := claims["exp"].(float64)
+	if !ok {
+		return "", time.Time{}, errors.New("expiration not found in token")
+	}
+	expirationTime := time.Unix(int64(exp), 0)
+	if now.After(expirationTime) {
+		return "", time.Time{}, errors.New("token expired")
+	}
+
+	return userID, expirationTime, nil
+}
+
 func VerifyJWT(tokenString string) (string, time.Time, error) {
 	km := getKeyManager()
+
+	// First, try to parse token to get the kid claim
+	unverifiedToken, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
+	if err == nil {
+		if claims, ok := unverifiedToken.Claims.(jwt.MapClaims); ok {
+			if kidClaim, exists := claims["kid"]; exists {
+				if kidStr, ok := kidClaim.(string); ok {
+					// Try to find the specific key first
+					km.mu.RLock()
+					if specificKey, found := km.keyIDToKey[kidStr]; found {
+						km.mu.RUnlock()
+						// Try verification with the specific key
+						if userID, expTime, err := verifyTokenWithKey(tokenString, specificKey); err == nil {
+							return userID, expTime, nil
+						}
+					} else {
+						km.mu.RUnlock()
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback to trying all keys
 	validKeys := km.GetAllValidKeys()
 
 	var lastErr error
 	for _, key := range validKeys {
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			if token.Method != jwt.SigningMethodHS256 {
-				return nil, errors.New("unexpected signing method: only HS256 is allowed")
-			}
-			return key, nil
-		})
-
-		if err != nil {
+		if userID, expTime, err := verifyTokenWithKey(tokenString, key); err == nil {
+			return userID, expTime, nil
+		} else {
 			lastErr = err
-			continue
 		}
-
-		if !token.Valid {
-			lastErr = errors.New("token is invalid")
-			continue
-		}
-
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			lastErr = errors.New("could not parse claims")
-			continue
-		}
-
-		userID, ok := claims["user_id"].(string)
-		if !ok {
-			lastErr = errors.New("user_id not found in token")
-			continue
-		}
-
-		now := time.Now()
-
-		iat, ok := claims["iat"].(float64)
-		if !ok {
-			lastErr = errors.New("iat (issued at) not found in token")
-			continue
-		}
-		issuedAt := time.Unix(int64(iat), 0)
-		if issuedAt.After(now) {
-			lastErr = errors.New("token used before issued")
-			continue
-		}
-
-		nbf, ok := claims["nbf"].(float64)
-		if !ok {
-			lastErr = errors.New("nbf (not before) not found in token")
-			continue
-		}
-		notBefore := time.Unix(int64(nbf), 0)
-		if now.Before(notBefore) {
-			lastErr = errors.New("token used before valid")
-			continue
-		}
-
-		exp, ok := claims["exp"].(float64)
-		if !ok {
-			lastErr = errors.New("expiration not found in token")
-			continue
-		}
-		expirationTime := time.Unix(int64(exp), 0)
-		if now.After(expirationTime) {
-			lastErr = errors.New("token expired")
-			continue
-		}
-
-		return userID, expirationTime, nil
 	}
 
 	if lastErr != nil {
@@ -197,7 +250,7 @@ func jwtSecretKeyFunc(token *jwt.Token) (interface{}, error) {
 	km := getKeyManager()
 	return km.GetCurrentKey(), nil
 }
-func RotateJWTKey(newKey []byte) {
+func RotateJWTKey(newKey []byte) error {
 	km := getKeyManager()
-	km.RotateKey(newKey)
+	return km.RotateKey(newKey)
 }
