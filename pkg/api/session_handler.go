@@ -50,7 +50,11 @@ func RenewSessionHandler(c *gin.Context) {
 	var secure bool = true
 	if d, ok := domainMap[env]; ok {
 		domain = d
-		if env == constants.ENV_STAGING || env == constants.ENV_DEVELOPMENT || env == constants.ENV_TEST {
+		if env == constants.ENV_STAGING {
+			httpOnly = true
+			secure = true
+		}
+		if env == constants.ENV_DEVELOPMENT || env == constants.ENV_TEST {
 			httpOnly = false
 			secure = false
 		}

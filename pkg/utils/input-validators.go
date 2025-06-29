@@ -38,7 +38,11 @@ func IsValidUsername(username string) bool {
 }
 
 func IsValidEmail(email string) bool {
-	// Basic email validation
+	// Basic email validation - reject emails with control characters
+	if strings.ContainsAny(email, "\n\r\t\x00") {
+		return false
+	}
+
 	re := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 	return re.MatchString(email)
 }

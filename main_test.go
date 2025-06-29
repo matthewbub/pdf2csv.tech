@@ -50,6 +50,25 @@ func TestSignUpBruteForce(t *testing.T) {
 	})
 }
 
+func TestLoginEndpoint(t *testing.T) {
+	router := setupTestRouter()
+	t.Run("Login user", func(t *testing.T) {
+		test.LoginUserTest(router, t)
+	})
+}
+
+
+
+func TestLoginBruteForce(t *testing.T) {
+	// Clear any existing login attempts before running brute force tests
+	middleware.ClearLoginAttempts()
+
+	router := setupTestRouter()
+	t.Run("Brute force login tests", func(t *testing.T) {
+		test.BruteForceLoginTests(router, t)
+	})
+}
+
 // setupTestRouter creates a test instance of your router
 func setupTestRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)

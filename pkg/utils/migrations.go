@@ -64,14 +64,12 @@ func RunMigrations() error {
 func RunMigrationsTest() error {
 	log.Println("Setting up test database with user history...")
 	ctx := context.Background()
-	
+
 	// Get the in-memory database connection
 	db := GetDB()
 	if db == nil {
 		return fmt.Errorf("failed to get database connection for test setup")
 	}
-
-
 
 	// Since migrations aren't working with in-memory DB, let's manually create the users table
 	log.Println("Manually creating users table for tests...")
@@ -90,6 +88,18 @@ func RunMigrationsTest() error {
 	`)
 	if err != nil {
 		return fmt.Errorf("failed to create users table: %w", err)
+	}
+
+	// Create the active_users view
+	log.Println("Creating active_users view...")
+	_, err = db.ExecContext(ctx, `
+		CREATE VIEW IF NOT EXISTS active_users AS 
+		SELECT *,
+		       inactive_at IS NULL as is_active 
+		FROM users
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create active_users view: %w", err)
 	}
 
 	// Create other essential tables
@@ -229,7 +239,7 @@ func RunMigrationsTest() error {
 // DropTestDatabase cleans up test database resources
 func DropTestDatabase() error {
 	log.Println("Cleaning up test database resources...")
-	
+
 	// For in-memory databases, we just need to close the connection
 	// The database will be automatically cleaned up when the connection closes
 	db := GetDB()
