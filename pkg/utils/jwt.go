@@ -13,10 +13,15 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+type keyWithID struct {
+	key   []byte
+	keyID string
+}
+
 type JWTKeyManager struct {
 	mu           sync.RWMutex
 	currentKey   []byte
-	previousKeys [][]byte
+	previousKeys []keyWithID
 	keyID        string
 	keyIDToKey   map[string][]byte
 }
@@ -36,11 +41,10 @@ func getKeyManager() *JWTKeyManager {
 		keyID := generateKeyID(currentKey)
 		keyManager = &JWTKeyManager{
 			currentKey:   currentKey,
-			previousKeys: make([][]byte, 0),
+			previousKeys: make([]keyWithID, 0),
 			keyID:        keyID,
 			keyIDToKey:   make(map[string][]byte),
-		}
-		// Store the current key in the mapping
+		} // Store the current key in the mapping
 		keyManager.keyIDToKey[keyID] = make([]byte, len(currentKey))
 		copy(keyManager.keyIDToKey[keyID], currentKey)
 	})
@@ -69,9 +73,9 @@ func (km *JWTKeyManager) GetAllValidKeys() [][]byte {
 	keys = append(keys, currentKeyCopy)
 
 	// Create copies of all previous keys
-	for _, key := range km.previousKeys {
-		keyCopy := make([]byte, len(key))
-		copy(keyCopy, key)
+	for _, keyWithID := range km.previousKeys {
+		keyCopy := make([]byte, len(keyWithID.key))
+		copy(keyCopy, keyWithID.key)
 		keys = append(keys, keyCopy)
 	}
 
@@ -93,7 +97,11 @@ func (km *JWTKeyManager) RotateKey(newKey []byte) error {
 
 	currentKeyCopy := make([]byte, len(km.currentKey))
 	copy(currentKeyCopy, km.currentKey)
-	km.previousKeys = append(km.previousKeys, currentKeyCopy)
+	currentKeyWithID := keyWithID{
+		key:   currentKeyCopy,
+		keyID: km.keyID,
+	}
+	km.previousKeys = append(km.previousKeys, currentKeyWithID)
 
 	newKeyCopy := make([]byte, len(newKey))
 	copy(newKeyCopy, newKey)
@@ -107,17 +115,8 @@ func (km *JWTKeyManager) RotateKey(newKey []byte) error {
 
 	// Clean up old keys from mapping if we exceed the limit
 	if len(km.previousKeys) > 3 {
-		// Remove the oldest key from mapping before removing from slice
-		if len(km.previousKeys) > 0 {
-			oldestKey := km.previousKeys[0]
-			// Find and remove the keyID for the oldest key
-			for keyID, key := range km.keyIDToKey {
-				if bytes.Equal(key, oldestKey) {
-					delete(km.keyIDToKey, keyID)
-					break
-				}
-			}
-		}
+		oldestKeyID := km.previousKeys[0].keyID
+		delete(km.keyIDToKey, oldestKeyID)
 		km.previousKeys = km.previousKeys[1:]
 	}
 
@@ -127,6 +126,11 @@ func (km *JWTKeyManager) RotateKey(newKey []byte) error {
 func GenerateJWT(userID string) (string, error) {
 	km := getKeyManager()
 	jwtSecret := km.GetCurrentKey()
+
+	km.mu.RLock()
+	currentKeyID := km.keyID
+	km.mu.RUnlock()
+
 	expiration := constants.AppConfig.DefaultJWTExpiration
 	now := time.Now()
 
@@ -135,7 +139,7 @@ func GenerateJWT(userID string) (string, error) {
 		"iat":     now.Unix(),
 		"nbf":     now.Unix(),
 		"exp":     now.Add(expiration).Unix(),
-		"kid":     km.keyID,
+		"kid":     currentKeyID,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtSecret)
