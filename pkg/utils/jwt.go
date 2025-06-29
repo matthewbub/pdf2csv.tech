@@ -43,7 +43,11 @@ func getKeyManager() *JWTKeyManager {
 func (km *JWTKeyManager) GetCurrentKey() []byte {
 	km.mu.RLock()
 	defer km.mu.RUnlock()
-	return km.currentKey
+
+	// Create a defensive copy to prevent external modification
+	keyCopy := make([]byte, len(km.currentKey))
+	copy(keyCopy, km.currentKey)
+	return keyCopy
 }
 
 func (km *JWTKeyManager) GetAllValidKeys() [][]byte {
@@ -51,8 +55,19 @@ func (km *JWTKeyManager) GetAllValidKeys() [][]byte {
 	defer km.mu.RUnlock()
 
 	keys := make([][]byte, 0, len(km.previousKeys)+1)
-	keys = append(keys, km.currentKey)
-	keys = append(keys, km.previousKeys...)
+
+	// Create a copy of the current key
+	currentKeyCopy := make([]byte, len(km.currentKey))
+	copy(currentKeyCopy, km.currentKey)
+	keys = append(keys, currentKeyCopy)
+
+	// Create copies of all previous keys
+	for _, key := range km.previousKeys {
+		keyCopy := make([]byte, len(key))
+		copy(keyCopy, key)
+		keys = append(keys, keyCopy)
+	}
+
 	return keys
 }
 
@@ -61,7 +76,7 @@ func (km *JWTKeyManager) RotateKey(newKey []byte) {
 	defer km.mu.Unlock()
 
 	if len(newKey) == 0 {
-		return
+		panic("new key cannot be empty")
 	}
 
 	currentKeyCopy := make([]byte, len(km.currentKey))
