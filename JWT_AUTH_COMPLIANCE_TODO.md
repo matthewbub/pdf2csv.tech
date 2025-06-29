@@ -31,14 +31,6 @@
 
 ---
 
-## Critical Security Issues (High Priority)
-
-### 1. **Cookie Security Inconsistencies**
-- **Issue**: `HttpOnly=false` and `Secure=false` in non-production environments
-- **Risk**: XSS attacks can steal tokens in staging/dev
-- **Fix**: Always use secure cookie settings, use different domains for testing
-- **Location**: `pkg/api/login.go:96-99`, `pkg/api/session_handler.go:53-56`
-
 ## Medium Priority Security Improvements
 
 ### 2. **Missing SameSite Configuration**
