@@ -135,6 +135,7 @@ func LoginHandler(c *gin.Context) {
 		}
 	}
 
+	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie("jwt", jwtToken, int(cookieConfig.Expiration.Seconds()), "/", cookieConfig.Domain, cookieConfig.Secure, cookieConfig.HttpOnly)
 
 	// Clear failed login attempts on successful login

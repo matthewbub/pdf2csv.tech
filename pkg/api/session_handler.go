@@ -66,7 +66,7 @@ func RenewSessionHandler(c *gin.Context) {
 	path := "/"
 
 	// Set new cookie
-	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie(
 		cookieName,
 		cookieValue,

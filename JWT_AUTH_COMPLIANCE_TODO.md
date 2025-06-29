@@ -1,22 +1,6 @@
 # JWT Authentication System - Compliance & Standardization TODO
 
-## Critical Security Issues (High Priority)
-
-### 1. **Cookie Security Inconsistencies**
-
-- **Issue**: `HttpOnly=false` and `Secure=false` in non-production environments
-- **Risk**: XSS attacks can steal tokens in staging/dev
-- **Fix**: Always use secure cookie settings, use different domains for testing
-- **Location**: `pkg/api/login.go:96-99`, `pkg/api/session_handler.go:53-56`
-
-## Medium Priority Security Improvements
-
-### 2. **Missing SameSite Configuration**
-
-- **Issue**: Inconsistent SameSite cookie attribute usage (only set in session_handler.go:65)
-- **Risk**: CSRF attacks
-- **Fix**: Standardize SameSite=Strict for JWT cookies in all handlers
-- **Location**: `pkg/api/login.go:102` (missing), `pkg/api/session_handler.go:65` (implemented)
+# Medium Priority Security Improvements
 
 ### 3. **Token Expiration Too Short**
 
