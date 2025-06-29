@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"crypto/rand"
 	"encoding/base64"
 	"fmt"
 	"log"
@@ -70,12 +71,12 @@ func ValidateEnvironment() error {
 func SetTestEnvironment() error {
 	// Try to load .env file from project root (go up directories until we find it)
 	envPaths := []string{
-		".env",           // current directory
-		"../.env",        // one level up
-		"../../.env",     // two levels up (for nested packages)
-		"../../../.env",  // three levels up
+		".env",          // current directory
+		"../.env",       // one level up
+		"../../.env",    // two levels up (for nested packages)
+		"../../../.env", // three levels up
 	}
-	
+
 	for _, path := range envPaths {
 		if err := godotenv.Load(path); err == nil {
 			break // Successfully loaded .env file
@@ -84,7 +85,12 @@ func SetTestEnvironment() error {
 
 	testKey := os.Getenv("TEST_SESSION_SECRET_KEY")
 	if testKey == "" {
-		return fmt.Errorf("TEST_SESSION_SECRET_KEY is not set")
+		// Generate a test key if not set (for CI environments)
+		testKeyBytes := make([]byte, 32)
+		if _, err := rand.Read(testKeyBytes); err != nil {
+			return fmt.Errorf("failed to generate test key: %w", err)
+		}
+		testKey = base64.StdEncoding.EncodeToString(testKeyBytes)
 	}
 
 	// validate the test key format
