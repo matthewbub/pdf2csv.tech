@@ -29,6 +29,11 @@ jobs:
     - name: Download dependencies
       run: go mod download
     
+    - name: Generate SESSION_SECRET_KEY
+      run: |
+        SESSION_SECRET_KEY=$(go run cmd/generate_base64_key/main.go | grep "Generated base64 key:" | cut -d' ' -f4)
+        echo "SESSION_SECRET_KEY=$SESSION_SECRET_KEY" >> $GITHUB_ENV
+    
     - name: Run tests
       run: go test ./... -v
     

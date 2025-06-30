@@ -53,6 +53,16 @@ func SignUpHandler(c *gin.Context) {
 		return
 	}
 
+	// Check password length before hashing (bcrypt has 72 byte limit)
+	if len(body.Password) > 72 {
+		logger.Printf("Password too long")
+		c.JSON(http.StatusBadRequest, response.Error(
+			"Password too long (max 72 characters)",
+			response.INVALID_REQUEST_DATA,
+		))
+		return
+	}
+
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
 	if err != nil {
