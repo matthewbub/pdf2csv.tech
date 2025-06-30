@@ -53,6 +53,16 @@ func SignUpHandler(c *gin.Context) {
 		return
 	}
 
+	// Check password length before hashing (bcrypt has 72 byte limit)
+	if len(body.Password) > 72 {
+		logger.Printf("Password too long")
+		c.JSON(http.StatusBadRequest, response.Error(
+			"Password too long (max 72 characters)",
+			response.INVALID_REQUEST_DATA,
+		))
+		return
+	}
+
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -86,38 +96,7 @@ func SignUpHandler(c *gin.Context) {
 		return
 	}
 
-	cookieConfig := struct {
-		Expiration time.Duration
-		Domain     string
-		Secure     bool
-		HttpOnly   bool
-	}{
-		Expiration: constants.AppConfig.AccessTokenExpiration,
-		Domain:     "",
-		Secure:     true,
-		HttpOnly:   true,
-	}
-
-	env := utils.GetEnv()
-	domainMap := map[string]string{
-		constants.ENV_PRODUCTION:  constants.AppConfig.ProductionDomain,
-		constants.ENV_STAGING:     constants.AppConfig.StagingDomain,
-		constants.ENV_DEVELOPMENT: constants.AppConfig.DevelopmentDomain,
-		constants.ENV_TEST:        constants.AppConfig.TestDomain,
-	}
-
-	if d, ok := domainMap[env]; ok {
-		cookieConfig.Domain = d
-
-		if env == constants.ENV_PRODUCTION {
-			cookieConfig.Secure = true
-			cookieConfig.HttpOnly = true
-		}
-		if env == constants.ENV_STAGING || env == constants.ENV_DEVELOPMENT || env == constants.ENV_TEST {
-			cookieConfig.HttpOnly = false
-			cookieConfig.Secure = false
-		}
-	}
+	cookieConfig := utils.GetCookieConfig(constants.AppConfig.AccessTokenExpiration)
 
 	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie("jwt", accessToken, int(cookieConfig.Expiration.Seconds()), "/", cookieConfig.Domain, cookieConfig.Secure, cookieConfig.HttpOnly)

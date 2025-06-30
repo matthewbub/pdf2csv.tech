@@ -9,7 +9,11 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+    env:
+      ENV: test
+      SESSION_SECRET_KEY: "5j4b0nRGun6btLF3MC+hq9Hq+JhUV5NVSjhHO5RTY8o="
+      TEST_SESSION_SECRET_KEY: "5j4b0nRGun6btLF3MC+hq9Hq+JhUV5NVSjhHO5RTY8o="
+
     steps:
     - uses: actions/checkout@v4
     

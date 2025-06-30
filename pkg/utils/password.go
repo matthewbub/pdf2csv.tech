@@ -14,8 +14,8 @@ func HashPassword(password string) (string, error) {
 }
 
 func ValidatePasswordStrength(password string) error {
-	if !MaxLength(password, 100) {
-		return fmt.Errorf("password must be less than 100 characters")
+	if !MaxLength(password, 72) {
+		return fmt.Errorf("password must be less than 72 characters")
 	}
 	if !MustBe8Characters(password) {
 		return fmt.Errorf("password must be at least 8 characters")

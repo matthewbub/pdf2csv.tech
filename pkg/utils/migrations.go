@@ -165,6 +165,35 @@ func RunMigrationsTest() error {
 	}
 
 	_, err = db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS token_blacklist (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			token_jti TEXT NOT NULL UNIQUE,
+			user_id TEXT NOT NULL,
+			token_type TEXT NOT NULL CHECK (token_type IN ('access', 'refresh', 'all')),
+			expires_at TIMESTAMP NOT NULL,
+			blacklisted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			reason TEXT DEFAULT 'revoked'
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create token_blacklist table: %w", err)
+	}
+
+	_, err = db.ExecContext(ctx, `
+		CREATE INDEX IF NOT EXISTS idx_token_blacklist_jti ON token_blacklist(token_jti)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create token_blacklist index: %w", err)
+	}
+
+	_, err = db.ExecContext(ctx, `
+		CREATE INDEX IF NOT EXISTS idx_token_blacklist_expires_at ON token_blacklist(expires_at)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create token_blacklist expires_at index: %w", err)
+	}
+
+	_, err = db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS user_preferences (
 			user_id INTEGER PRIMARY KEY,
 			use_markdown BOOLEAN DEFAULT TRUE,
