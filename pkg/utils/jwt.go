@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 
 	"bus.zcauldron.com/pkg/constants"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 type keyWithID struct {
@@ -133,6 +135,7 @@ func GenerateJWT(userID string) (string, error) {
 
 	expiration := constants.AppConfig.AccessTokenExpiration
 	now := time.Now()
+	jti := uuid.New().String()
 
 	claims := jwt.MapClaims{
 		"user_id": userID,
@@ -141,6 +144,7 @@ func GenerateJWT(userID string) (string, error) {
 		"exp":     now.Add(expiration).Unix(),
 		"kid":     currentKeyID,
 		"type":    "access",
+		"jti":     jti,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtSecret)
@@ -156,6 +160,7 @@ func GenerateRefreshToken(userID string) (string, error) {
 
 	expiration := constants.AppConfig.RefreshTokenExpiration
 	now := time.Now()
+	jti := uuid.New().String()
 
 	claims := jwt.MapClaims{
 		"user_id": userID,
@@ -164,6 +169,7 @@ func GenerateRefreshToken(userID string) (string, error) {
 		"exp":     now.Add(expiration).Unix(),
 		"kid":     currentKeyID,
 		"type":    "refresh",
+		"jti":     jti,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtSecret)
@@ -345,4 +351,114 @@ func jwtSecretKeyFunc(token *jwt.Token) (interface{}, error) {
 func RotateJWTKey(newKey []byte) error {
 	km := getKeyManager()
 	return km.RotateKey(newKey)
+}
+
+func BlacklistToken(db *sql.DB, tokenString string, reason string) error {
+	unverifiedToken, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
+	if err != nil {
+		return fmt.Errorf("failed to parse token: %w", err)
+	}
+
+	claims, ok := unverifiedToken.Claims.(jwt.MapClaims)
+	if !ok {
+		return errors.New("could not parse token claims")
+	}
+
+	jti, ok := claims["jti"].(string)
+	if !ok {
+		return errors.New("token does not contain jti claim")
+	}
+
+	userID, ok := claims["user_id"].(string)
+	if !ok {
+		return errors.New("token does not contain user_id claim")
+	}
+
+	tokenType, ok := claims["type"].(string)
+	if !ok {
+		return errors.New("token does not contain type claim")
+	}
+
+	exp, ok := claims["exp"].(float64)
+	if !ok {
+		return errors.New("token does not contain exp claim")
+	}
+	expiresAt := time.Unix(int64(exp), 0)
+
+	_, err = db.Exec(`
+		INSERT INTO token_blacklist (token_jti, user_id, token_type, expires_at, reason)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(token_jti) DO NOTHING
+	`, jti, userID, tokenType, expiresAt, reason)
+
+	if err != nil {
+		return fmt.Errorf("failed to blacklist token: %w", err)
+	}
+
+	return nil
+}
+
+func IsTokenBlacklisted(db *sql.DB, tokenString string) (bool, error) {
+	unverifiedToken, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
+	if err != nil {
+		return false, fmt.Errorf("failed to parse token: %w", err)
+	}
+
+	claims, ok := unverifiedToken.Claims.(jwt.MapClaims)
+	if !ok {
+		return false, errors.New("could not parse token claims")
+	}
+
+	userID, ok := claims["user_id"].(string)
+	if !ok {
+		return false, errors.New("user_id not found in token")
+	}
+
+	jti, ok := claims["jti"].(string)
+	if !ok {
+		// If no JTI, check for user-level blacklist
+		var count int
+		err = db.QueryRow("SELECT COUNT(*) FROM token_blacklist WHERE user_id = ? AND token_type = 'all'", userID).Scan(&count)
+		if err != nil {
+			return false, fmt.Errorf("failed to check user blacklist: %w", err)
+		}
+		return count > 0, nil
+	}
+
+	// Check for specific token blacklist or user-level blacklist
+	var count int
+	err = db.QueryRow(`
+		SELECT COUNT(*) FROM token_blacklist 
+		WHERE token_jti = ? OR (user_id = ? AND token_type = 'all')
+	`, jti, userID).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to check blacklist: %w", err)
+	}
+
+	return count > 0, nil
+}
+
+func CleanupExpiredBlacklistedTokens(db *sql.DB) error {
+	_, err := db.Exec("DELETE FROM token_blacklist WHERE expires_at < ?", time.Now())
+	if err != nil {
+		return fmt.Errorf("failed to cleanup expired blacklisted tokens: %w", err)
+	}
+	return nil
+}
+
+func BlacklistAllUserTokens(db *sql.DB, userID string, reason string) error {
+	_, err := db.Exec(`
+		INSERT INTO token_blacklist (token_jti, user_id, token_type, expires_at, reason)
+		SELECT DISTINCT 'user_revoke_' || ? || '_' || datetime('now'), ?, 'all', datetime('now', '+1 year'), ?
+		WHERE NOT EXISTS (
+			SELECT 1 FROM token_blacklist 
+			WHERE user_id = ? AND token_type = 'all'
+		)
+	`, userID, userID, reason, userID)
+
+	if err != nil {
+		return fmt.Errorf("failed to blacklist all user tokens: %w", err)
+	}
+
+	return nil
 }

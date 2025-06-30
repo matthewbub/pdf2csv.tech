@@ -38,6 +38,23 @@ func main() {
 		logger.Fatal("Failed to initialize the database connection.")
 	}
 
+	// Start background cleanup for expired blacklisted tokens
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour) // Run cleanup every hour
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if err := utils.CleanupExpiredBlacklistedTokens(db); err != nil {
+					logger.Printf("Error cleaning up expired blacklisted tokens: %v", err)
+				} else {
+					logger.Println("Successfully cleaned up expired blacklisted tokens")
+				}
+			}
+		}
+	}()
+
 	router := gin.Default()
 	router.Static("/_assets/", "./routes/dist/_assets")
 	router.NoRoute(func(c *gin.Context) {
@@ -92,6 +109,8 @@ func main() {
 		accountRoutes.POST("/profile", api.UpdateProfileHandler)
 		accountRoutes.DELETE("/delete", api.DeleteAccountHandler)
 		accountRoutes.GET("/pages-processed", api.GetPagesProcessed)
+		accountRoutes.POST("/revoke-token", api.RevokeTokenHandler)
+		accountRoutes.POST("/revoke-all-tokens", api.RevokeAllTokensHandler)
 	}
 
 	pdfRoutes := router.Group("/api/v1/pdf", middleware.JWTAuthMiddleware())
