@@ -10,7 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      ENV: development
+      ENV: test
       SESSION_SECRET_KEY: "5j4b0nRGun6btLF3MC+hq9Hq+JhUV5NVSjhHO5RTY8o="
       TEST_SESSION_SECRET_KEY: "5j4b0nRGun6btLF3MC+hq9Hq+JhUV5NVSjhHO5RTY8o="
 
@@ -36,11 +36,11 @@ jobs:
     - name: Run tests
       run: go test ./... -v
     
- #   - name: Run tests with coverage
-  #    run: go test ./... -coverprofile=coverage.out
+    - name: Run tests with coverage
+      run: go test ./... -coverprofile=coverage.out
     
-#    - name: Upload coverage to Codecov
- #     uses: codecov/codecov-action@v4
-  #    with:
-   #     file: ./coverage.out
-    #    fail_ci_if_error: false
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.out
+        fail_ci_if_error: false
