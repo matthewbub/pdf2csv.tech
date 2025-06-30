@@ -3,7 +3,6 @@ package middleware
 import (
 	"log"
 	"net/http"
-	"time"
 
 	"bus.zcauldron.com/pkg/utils"
 	"github.com/gin-gonic/gin"
@@ -32,17 +31,10 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		}
 
 		// Verify the token using the updated utils function
-		userID, expTime, err := utils.VerifyJWT(tokenString)
+		userID, _, err := utils.VerifyJWT(tokenString)
 		if err != nil {
 			log.Println("error verifying token", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
-			return
-		}
-
-		// Check if token is expired (additional check)
-		if time.Now().After(expTime) {
-			log.Println("token expired")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token expired"})
 			return
 		}
 
