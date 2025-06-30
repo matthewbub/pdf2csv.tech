@@ -131,7 +131,7 @@ func GenerateJWT(userID string) (string, error) {
 	currentKeyID := km.keyID
 	km.mu.RUnlock()
 
-	expiration := constants.AppConfig.DefaultJWTExpiration
+	expiration := constants.AppConfig.AccessTokenExpiration
 	now := time.Now()
 
 	claims := jwt.MapClaims{
@@ -140,9 +140,47 @@ func GenerateJWT(userID string) (string, error) {
 		"nbf":     now.Unix(),
 		"exp":     now.Add(expiration).Unix(),
 		"kid":     currentKeyID,
+		"type":    "access",
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtSecret)
+}
+
+func GenerateRefreshToken(userID string) (string, error) {
+	km := getKeyManager()
+	jwtSecret := km.GetCurrentKey()
+
+	km.mu.RLock()
+	currentKeyID := km.keyID
+	km.mu.RUnlock()
+
+	expiration := constants.AppConfig.RefreshTokenExpiration
+	now := time.Now()
+
+	claims := jwt.MapClaims{
+		"user_id": userID,
+		"iat":     now.Unix(),
+		"nbf":     now.Unix(),
+		"exp":     now.Add(expiration).Unix(),
+		"kid":     currentKeyID,
+		"type":    "refresh",
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtSecret)
+}
+
+func GenerateTokenPair(userID string) (accessToken, refreshToken string, err error) {
+	accessToken, err = GenerateJWT(userID)
+	if err != nil {
+		return "", "", err
+	}
+
+	refreshToken, err = GenerateRefreshToken(userID)
+	if err != nil {
+		return "", "", err
+	}
+
+	return accessToken, refreshToken, nil
 }
 
 func verifyTokenWithKey(tokenString string, key []byte) (string, time.Time, error) {
@@ -201,6 +239,56 @@ func verifyTokenWithKey(tokenString string, key []byte) (string, time.Time, erro
 	}
 
 	return userID, expirationTime, nil
+}
+
+func VerifyRefreshToken(tokenString string) (string, time.Time, error) {
+	km := getKeyManager()
+
+	// First, try to parse token to get the kid claim and verify it's a refresh token
+	unverifiedToken, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
+	if err == nil {
+		if claims, ok := unverifiedToken.Claims.(jwt.MapClaims); ok {
+			// Check if this is a refresh token
+			if tokenType, exists := claims["type"]; exists {
+				if typeStr, ok := tokenType.(string); ok && typeStr != "refresh" {
+					return "", time.Time{}, errors.New("invalid token type: expected refresh token")
+				}
+			}
+
+			if kidClaim, exists := claims["kid"]; exists {
+				if kidStr, ok := kidClaim.(string); ok {
+					// Try to find the specific key first
+					km.mu.RLock()
+					if specificKey, found := km.keyIDToKey[kidStr]; found {
+						km.mu.RUnlock()
+						// Try verification with the specific key
+						if userID, expTime, err := verifyTokenWithKey(tokenString, specificKey); err == nil {
+							return userID, expTime, nil
+						}
+					} else {
+						km.mu.RUnlock()
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback to trying all keys
+	validKeys := km.GetAllValidKeys()
+
+	var lastErr error
+	for _, key := range validKeys {
+		if userID, expTime, err := verifyTokenWithKey(tokenString, key); err == nil {
+			return userID, expTime, nil
+		} else {
+			lastErr = err
+		}
+	}
+
+	if lastErr != nil {
+		return "", time.Time{}, lastErr
+	}
+	return "", time.Time{}, errors.New("no valid key found for refresh token")
 }
 
 func VerifyJWT(tokenString string) (string, time.Time, error) {

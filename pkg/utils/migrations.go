@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"bus.zcauldron.com/pkg/constants"
-	"bus.zcauldron.com/pkg/test"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/sqlite3"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -221,14 +220,19 @@ func RunMigrationsTest() error {
 	}
 	defer stmt.Close()
 
-	log.Printf("Inserting primary test user: %s (%s)", test.TestConfig.PrimaryUser, test.TestConfig.PrimaryEmail)
-	_, err = stmt.ExecContext(ctx, test.TestConfig.PrimaryUser, test.TestConfig.PrimaryEmail)
+	primaryUser := "testuser1"
+	primaryEmail := "test1@example.com"
+	secondaryUser := "testuser2"
+	secondaryEmail := "test2@example.com"
+
+	log.Printf("Inserting primary test user: %s (%s)", primaryUser, primaryEmail)
+	_, err = stmt.ExecContext(ctx, primaryUser, primaryEmail)
 	if err != nil {
 		return fmt.Errorf("failed to insert primary test user: %w", err)
 	}
 
-	log.Printf("Inserting secondary test user: %s (%s)", test.TestConfig.SecondaryUser, test.TestConfig.SecondaryEmail)
-	_, err = stmt.ExecContext(ctx, test.TestConfig.SecondaryUser, test.TestConfig.SecondaryEmail)
+	log.Printf("Inserting secondary test user: %s (%s)", secondaryUser, secondaryEmail)
+	_, err = stmt.ExecContext(ctx, secondaryUser, secondaryEmail)
 	if err != nil {
 		return fmt.Errorf("failed to insert secondary test user: %w", err)
 	}

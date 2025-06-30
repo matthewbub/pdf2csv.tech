@@ -75,12 +75,12 @@ func SignUpHandler(c *gin.Context) {
 		return
 	}
 
-	// Generate and set JWT
-	token, err := utils.GenerateJWT(userID)
+	// Generate access and refresh tokens
+	accessToken, refreshToken, err := utils.GenerateTokenPair(userID)
 	if err != nil {
-		logger.Printf("JWT generation error: %v", err)
+		logger.Printf("Token generation error: %v", err)
 		c.JSON(http.StatusInternalServerError, response.Error(
-			"Failed to generate token",
+			"Failed to generate tokens",
 			response.AUTHENTICATION_FAILED,
 		))
 		return
@@ -92,7 +92,7 @@ func SignUpHandler(c *gin.Context) {
 		Secure     bool
 		HttpOnly   bool
 	}{
-		Expiration: constants.AppConfig.DefaultJWTExpiration,
+		Expiration: constants.AppConfig.AccessTokenExpiration,
 		Domain:     "",
 		Secure:     true,
 		HttpOnly:   true,
@@ -119,7 +119,9 @@ func SignUpHandler(c *gin.Context) {
 		}
 	}
 
-	c.SetCookie("jwt", token, int(cookieConfig.Expiration.Seconds()), "/", cookieConfig.Domain, cookieConfig.Secure, true)
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie("jwt", accessToken, int(cookieConfig.Expiration.Seconds()), "/", cookieConfig.Domain, cookieConfig.Secure, cookieConfig.HttpOnly)
+	c.SetCookie("refresh_token", refreshToken, int(constants.AppConfig.RefreshTokenExpiration.Seconds()), "/", cookieConfig.Domain, cookieConfig.Secure, cookieConfig.HttpOnly)
 	c.JSON(http.StatusOK, response.SuccessMessage(
 		"Account registration completed successfully",
 	))

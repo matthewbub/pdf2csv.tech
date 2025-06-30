@@ -17,9 +17,8 @@ type Config struct {
 		// In staging, you have both servers running together, and visit Config.StagingPort to see the UI; HTTP requests are made to Config.StagingPort as well
 		StagingPort int
 	}
-	DefaultJWTExpiration time.Duration
-	// TODO: Implement ExtendJWTExpiration
-	// ExtendJWTExpiration  time.Duration
+	AccessTokenExpiration  time.Duration
+	RefreshTokenExpiration time.Duration
 
 	// TODO: Implement SecondaryAuthType
 	// SecondaryAuthType string
@@ -40,10 +39,8 @@ var AppConfig = Config{
 		Backend:     8080,
 		StagingPort: 8080,
 	},
-	DefaultJWTExpiration: time.Minute * 30,
-
-	// TODO: Implement ExtendJWTExpiration
-	// ExtendJWTExpiration:  time.Hour * 24,
+	AccessTokenExpiration:  time.Hour * 1,      // 1 hour for access tokens
+	RefreshTokenExpiration: time.Hour * 24 * 7, // 7 days for refresh tokens
 
 	// TODO: Implement SecondaryAuthType
 	// SecondaryAuthType: "KBA", // KBA = Knowledge Based Authentication || MFA = Multi-Factor Authentication
