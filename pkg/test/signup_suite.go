@@ -517,8 +517,9 @@ func testConcurrentRegistrationAttempts(router *gin.Engine, t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		go func(index int) {
+			username := fmt.Sprintf("concurrent%d", index)
 			payload := SignUpRequest{
-				Username:        "concurrent",
+				Username:        username,
 				Password:        "ValidPass123!",
 				ConfirmPassword: "ValidPass123!",
 				Email:           fmt.Sprintf("concurrent%d@example.com", index),
@@ -564,12 +565,12 @@ func testEdgeCaseFieldValues(router *gin.Engine, t *testing.T) {
 			"MaximumValidValues",
 			SignUpRequest{
 				Username:        strings.Repeat("a", 30),
-				Password:        strings.Repeat("A", 50) + strings.Repeat("a", 25) + "123!@#$%",
-				ConfirmPassword: strings.Repeat("A", 50) + strings.Repeat("a", 25) + "123!@#$%",
+				Password:        strings.Repeat("A", 40) + strings.Repeat("a", 24) + "123!@#$%", // 72 characters long
+				ConfirmPassword: strings.Repeat("A", 40) + strings.Repeat("a", 24) + "123!@#$%", // 72 characters long
 				Email:           strings.Repeat("a", 50) + "@" + strings.Repeat("b", 50) + ".com",
 				TermsAccepted:   true,
 			},
-			http.StatusInternalServerError, // Should fail with 500 - bcrypt can't handle >72 byte passwords
+			http.StatusOK, // Should succeed with 72 character password
 		},
 		{
 			"UnicodeCharacters",
