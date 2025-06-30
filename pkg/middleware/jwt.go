@@ -1,18 +1,14 @@
 package middleware
 
 import (
-	"errors"
 	"log"
 	"net/http"
-	"time"
 
 	"bus.zcauldron.com/pkg/utils"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 func JWTAuthMiddleware() gin.HandlerFunc {
-	jwtSecretKey := utils.GetSecretKeyFromEnv()
 	return func(c *gin.Context) {
 		// Retrieve token from cookie
 		tokenString, err := c.Cookie("jwt")
@@ -22,44 +18,32 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Parse the token with the MapClaims type
-		token, err := jwt.ParseWithClaims(tokenString, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
-			if token.Method != jwt.SigningMethodHS256 {
-				return nil, errors.New("unexpected signing method: only HS256 is allowed")
-			}
-			return []byte(jwtSecretKey), nil
-		})
+		// Check if token is blacklisted (only for well-formed tokens)
+		db := utils.GetDB()
+		isBlacklisted, err := utils.IsTokenBlacklisted(db, tokenString)
+		if err != nil {
+			// If token is malformed, we'll catch it in the verification step
+			log.Println("error checking token blacklist", err)
+		} else if isBlacklisted {
+			log.Println("token is blacklisted")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token has been revoked"})
+			return
+		}
 
-		if err != nil || !token.Valid {
-			log.Println("error parsing token", err)
+		// Verify the token using the updated utils function
+		userID, _, err := utils.VerifyJWT(tokenString)
+		if err != nil {
+			log.Println("error verifying token", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			return
 		}
 
-		// Type assertion to access claims
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			log.Println("error getting token claims")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
-			return
-		}
+		// Store user ID in context for use in handlers
+		c.Set("user_id", userID)
 
-		// Check expiration time (exp) claim
-		if exp, ok := claims["exp"].(float64); ok {
-			if time.Unix(int64(exp), 0).Before(time.Now()) {
-				log.Println("token expired")
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token expired"})
-				return
-			}
-		} else {
-			log.Println("invalid token expiration")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token expiration"})
-			return
-		}
+		log.Println("token is valid and not blacklisted; proceeding with the request")
 
-		log.Println("token is valid and not expired; proceeding with the request")
-
-		// Token is valid and not expired; proceed with the request
+		// Token is valid and not blacklisted; proceed with the request
 		c.Next()
 	}
 }

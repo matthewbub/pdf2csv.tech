@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -16,6 +17,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestMain(m *testing.M) {
+	// Set test environment
+	if err := utils.SetTestEnvironment(); err != nil {
+		panic(err)
+	}
+
+	// Run test migrations to set up database tables
+	if err := utils.RunMigrationsTest(); err != nil {
+		panic(err)
+	}
+
+	gin.SetMode(gin.TestMode)
+	exitCode := m.Run()
+	os.Exit(exitCode)
+}
 
 func setupTestRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
