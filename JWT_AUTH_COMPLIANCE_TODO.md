@@ -1,24 +1,15 @@
 # JWT Authentication System - Compliance & Standardization TODO
 
-# Medium Priority Security Improvements
-
-## 4. **Missing Token Blacklisting**
-
-- **Issue**: No mechanism to invalidate tokens before expiration
-- **Risk**: Compromised tokens remain valid until expiration
-- **Fix**: Implement token blacklist/revocation system
-- **Location**: New implementation needed
-
 ## Compliance & Standards (Medium Priority)
 
-### 5. **RFC 7519 JWT Compliance**
+### 1. **RFC 7519 JWT Compliance**
 
 - **Issue**: Missing standard claims (`iss`, `aud`, `sub`)
 - **Risk**: Non-standard token format
 - **Fix**: Add issuer, audience, and subject claims
-- **Location**: `pkg/utils/jwt.go:137-143`
+- **Location**: `pkg/utils/jwt.go:140-148` (GenerateJWT) and `pkg/utils/jwt.go:165-173` (GenerateRefreshToken)
 
-### 6. **OWASP JWT Security Guidelines**
+### 2. **OWASP JWT Security Guidelines**
 
 - **Issue**: Not following OWASP JWT security best practices
 - **Risk**: Various security vulnerabilities
@@ -27,7 +18,7 @@
   - Add rate limiting for auth endpoints
 - **Location**: Multiple files
 
-### 7. **Missing CORS Security Headers**
+### 3. **Missing CORS Security Headers**
 
 - **Issue**: Basic CORS implementation without security headers
 - **Risk**: Various client-side attacks
@@ -36,39 +27,25 @@
 
 ## Code Quality & Maintainability (Low Priority)
 
-### 8. **Duplicate Cookie Configuration Code**
-
-- **Issue**: Cookie settings duplicated across handlers
-- **Risk**: Inconsistent behavior, maintenance burden
-- **Fix**: Create centralized cookie configuration utility
-- **Location**: `pkg/api/login.go:69-102`, `pkg/api/session_handler.go:41-74`
-
-### 9. **Error Message Information Disclosure**
+### 4. **Error Message Information Disclosure**
 
 - **Issue**: Detailed error messages may leak information
 - **Risk**: Information disclosure to attackers
 - **Fix**: Standardize generic error messages for auth failures
-- **Location**: `pkg/middleware/jwt.go:35, 43, 51, 56`
+- **Location**: `pkg/middleware/jwt.go:29, 37`
 
 ## Implementation Recommendations
 
-### Phase 1: Critical Security (Week 1)
-
-1. Secure cookie settings across all environments (fix HttpOnly/Secure in non-prod)
-
-### Phase 2: Enhanced Security (Week 2-3)
-
-1. Implement token blacklisting
-2. Add refresh token mechanism or extend expiration time
-3. Standardize SameSite cookie configuration
-4. Add security headers
-
-### Phase 3: Compliance & Quality (Week 4)
+### Phase 1: Compliance & Standards (Week 1)
 
 1. Add standard JWT claims (iss, aud, sub)
-2. Centralize cookie configuration
-3. Improve error handling
-4. Add comprehensive testing
+2. Add security headers to CORS middleware
+3. Implement OWASP JWT security guidelines
+
+### Phase 2: Code Quality (Week 2)
+
+1. Improve error handling to prevent information disclosure
+2. Add comprehensive testing
 
 ## Testing Requirements
 
@@ -93,5 +70,5 @@
 - 🟡 **Medium**: Important security improvements and compliance requirements
 - 🟢 **Low**: Code quality and maintainability improvements
 
-**Estimated Timeline:** 2-3 weeks for remaining implementation (reduced from 4 weeks due to completed items)
+**Estimated Timeline:** 1-2 weeks for remaining implementation (significantly reduced due to completed items)
 **Security Review Required:** After Phase 1 and Phase 2 completion
